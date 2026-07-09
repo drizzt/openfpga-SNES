@@ -620,6 +620,7 @@ module core_top (
   wire ss_save;
   wire ss_load;
   wire ss_busy;
+  wire ss_load_reject;
   wire ss_avail;
   wire ss_ctrl_idle;
   wire ss_stage_lost;
@@ -693,6 +694,7 @@ module core_top (
           .bridge_wr  (bridge_wr),
           .bridge_addr(bridge_addr),
           .ss_size    (ss_blob_size),
+          .dataslot_allcomplete(dataslot_allcomplete),
 
           .savestate_load(savestate_load),
           .savestate_load_ack_s(savestate_load_ack),
@@ -708,6 +710,7 @@ module core_top (
 
           .ss_allow(ss_allow),
           .ss_busy (ss_busy),
+          .ss_load_reject(ss_load_reject),
           .stage_lost(ss_stage_lost),
 
           .ss_save (ss_save),
@@ -998,6 +1001,7 @@ module core_top (
       .ss_load (ss_load),
       .ss_ctrl_idle(ss_ctrl_idle),
       .ss_busy (ss_busy),
+      .ss_load_reject(ss_load_reject),
       .ss_avail(ss_avail),
       .ss_stage_lost(ss_stage_lost),
 

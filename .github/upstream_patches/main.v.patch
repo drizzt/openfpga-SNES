@@ -1,5 +1,5 @@
 diff --git a/rtl/upstream/main.v b/rtl/upstream/main.v
-index dba1449..c63f111 100644
+index dba1449..1505b83 100644
 --- a/rtl/upstream/main.v
 +++ b/rtl/upstream/main.v
 @@ -1,4 +1,15 @@
@@ -19,11 +19,12 @@ index dba1449..c63f111 100644
  	input             RESET_N,
  
  	input             MCLK,
-@@ -136,21 +147,13 @@ module main (
+@@ -136,21 +147,14 @@ module main (
  	output      [7:0] SS_DDR_BE,
  	output            SS_DDR_REQ,
  
 +	output            SS_BUSY,
++	output            SS_LOAD_REJECT,
 +
  	output     [15:0] AUDIO_L,
  	output     [15:0] AUDIO_R
@@ -43,11 +44,29 @@ index dba1449..c63f111 100644
  
  wire [23:0] CA;
  wire        CPURD_N;
-@@ -882,7 +885,6 @@ end else
+@@ -882,7 +886,6 @@ end else
  assign MAP_ACTIVE[6] = 0;
  endgenerate
  
 -wire        SS_BUSY;
  wire  [7:0] SS_DO;
  wire [23:0] SS_ROM_ADDR;
+ 
+@@ -970,7 +973,8 @@ savestates ss
+ 
+ 	.ss_do_ovr(SS_DO_OVR),
+ 	.ss_rom_ovr(SS_ROM_OVR),
+-	.ss_busy(SS_BUSY)
++	.ss_busy(SS_BUSY),
++	.ss_load_reject(SS_LOAD_REJECT)
+ );
+ end else begin
+ 	assign SS_DO = 0;
+@@ -991,6 +995,7 @@ end else begin
+ 	assign SS_DO_OVR = 0;
+ 	assign SS_ROM_OVR = 0;
+ 	assign SS_BUSY = 0;
++	assign SS_LOAD_REJECT = 0;
+ end
+ endgenerate
  

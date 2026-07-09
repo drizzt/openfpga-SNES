@@ -6,7 +6,7 @@ Please report any issues encountered to this repo. Most likely any problems are 
 
 > [!NOTE]
 >
-> Savestates/Memories/Sleep are supported for regular carts, and the DSP, Super FX (GSU), and SA-1 special chips. CX4, S-DD1, SPC7110, and BSX are not supported. See the Savestates/Memories/Sleep section below.
+> Savestates/Memories/Sleep are supported for regular carts, and the DSP, Super FX (GSU), SA-1, and CX4 special chips. S-DD1, SPC7110, and BSX are not supported. See the Savestates/Memories/Sleep section below.
 
 ## Installation
 
@@ -48,9 +48,9 @@ BSX ROMs must be patched to run without BIOS. The BSX BIOS is not currently supp
 
 ### Savestates/Memories/Sleep
 
-Supported: regular carts and the DSP, Super FX/GSU, and SA-1 special chips.
+Supported: regular carts and the DSP, Super FX/GSU, SA-1, and CX4 special chips.
 
-Not supported: CX4, S-DD1, SPC7110, and BSX games
+Not supported: S-DD1, SPC7110, and BSX games
 
 Sleep requires working savestates. Processing the power button on your Pocket while playing an unsupported cart type will turn off the Pocket while losing your current game state.
 

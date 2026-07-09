@@ -15,6 +15,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   synthesis:
     runs-on: ubuntu-latest
@@ -32,6 +36,13 @@ jobs:
         with:
           repository: "agg23/pocketpublish"
           path: ".github/publish"
+
+      - name: "🧹 Free disk space"
+        run: |
+          # The Quartus image unpacks to ~20GB; default runner disk is too small
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+          df -h /
 
       - name: "🏗️ Compile design"
         shell: bash
@@ -60,7 +71,7 @@ jobs:
           }
 
           build_type=$(map_value "${{ matrix.core }}")
-          cmd="docker run --rm -v ${{ github.workspace }}:/build raetro/quartus:21.1 quartus_sh -t generate.tcl $build_type"
+          cmd="docker run --rm -v ${{ github.workspace }}:/build ghcr.io/drizzt/quartus:21.1 quartus_sh -t generate.tcl $build_type"
           echo "Running command: $cmd"
           eval $cmd
 
@@ -99,6 +110,12 @@ jobs:
           repository: "agg23/pocketpublish"
           path: ".github/publish"
 
+      # pocketpublish derives the version from GITHUB_REF (branch name = "master"),
+      # ignoring the version in gateware.json/core.json. Feed it a synthetic tag ref
+      # so core.json and the release filenames carry the build date instead.
+      - name: "Stamp version"
+        run: echo "GITHUB_REF=refs/tags/$(date -u +%Y.%m.%d)" >> "$GITHUB_ENV"
+
       - name: "Create folders"
         run: |
           pip3 install -r .github/publish/requirements.txt
@@ -111,12 +128,17 @@ jobs:
           merge-multiple: true
 
       - name: "Release"
+        run: python3 .github/publish/release.py --norelease
+
+      - name: "Publish nightly"
+        if: github.event_name != 'pull_request'
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            python3 .github/publish/release.py --norelease
-          else
-            python3 .github/publish/release.py
-          fi
+          gh release delete nightly --cleanup-tag -y || true
+          gh release create nightly release/*.zip \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Experimental nightly ($(date -u +%Y-%m-%d) ${GITHUB_SHA::7})" \
+            --notes "Rolling build of master @ ${GITHUB_SHA::7}. Auto-generated."
 
       - name: "Upload Actions artifact"
         uses: actions/upload-artifact@v4

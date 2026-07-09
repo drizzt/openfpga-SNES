@@ -5,30 +5,54 @@ Save state engine, Pocket-carried deltas:
    save_state_controller can fail the load at once instead of waiting out its
    ~10 s trigger timeout.
 
+2. Force an NMI when a save/load request has stayed armed too long without a
+   vector fetch. Some sections (title screens polling input) run with NMI
+   disabled and no IRQ, so the engine never gets a hijack point. After 2^20
+   MCLK (~48.8 ms) ss_nmi_force ORs one NMI into the 65C816. Ported from
+   SNES_MiSTer PR #488.
+
 diff --git a/rtl/upstream/savestates.sv b/rtl/upstream/savestates.sv
-index 8e567ec..8be5376 100644
+index 8e567ec..e0a4ba1 100644
 --- a/rtl/upstream/savestates.sv
 +++ b/rtl/upstream/savestates.sv
-@@ -69,7 +69,9 @@ module savestates
+@@ -69,7 +69,10 @@ module savestates
  
  	output            ss_do_ovr,
  	output            ss_rom_ovr,
 -	output reg        ss_busy
 +	output reg        ss_busy,
++	output reg        ss_nmi_force,
 +
 +	output reg        ss_load_reject // Sticky: header failed magic/signature check
  );
  
  reg cpurd_n_old, cpuwr_n_old;
-@@ -187,6 +189,7 @@ always @(posedge clk) begin
+@@ -163,6 +166,13 @@ localparam DDR_IDLE = 4'd0, LOAD_DATA = 4'd1, WRITE_DATA = 4'd2,
+ 
+ reg [31:0] ss_count = 0;
+ 
++// Force an NMI when a request has stayed armed too long without a vector
++// fetch. Some sections (title screens) run with NMI disabled and no IRQ, so
++// no hijack point ever appears. force_cnt[20] = 2^20 MCLK ticks ~48.8 ms.
++reg  [20:0] force_cnt;
++wire        arm_pending = (save_en | (load_en & load_ready)) & ~ss_busy;
++wire        force_ready = force_cnt[20];
++
+ // Detect if NMI is being used. Some games do not use NMI during game play.
+ reg [15:0] nmi_cycle_cnt, nmi_read_sr;
+ wire ss_use_nmi = |nmi_read_sr;
+@@ -187,7 +197,10 @@ always @(posedge clk) begin
  		load_en <= 0;
  		save_end <= 0;
  		load_ready <= 0;
 +		ss_load_reject <= 0;
  		rd_rti <= 0;
++		force_cnt <= 0;
++		ss_nmi_force <= 0;
  		ss_data_addr <= 0;
  		ss_data_addr_inc <= 0;
-@@ -203,6 +206,7 @@ always @(posedge clk) begin
+ 		ss_ext_addr <= 0;
+@@ -203,6 +216,7 @@ always @(posedge clk) begin
  				ss_slot <= slot;
  				ddr_state <= READ_HEAD; // Check header in RAM
  				load_ready <= 0;
@@ -36,7 +60,21 @@ index 8e567ec..8be5376 100644
  			end
  		end
  
-@@ -335,7 +339,8 @@ always @(posedge clk) begin
+@@ -231,6 +245,13 @@ always @(posedge clk) begin
+ 			end
+ 		end
+ 
++		// Run the force timer while a request waits for a vector fetch. At the
++		// terminal count assert one NMI at the CPU; it is edge-detected there,
++		// so a held level yields a single hijackable NMI. Drops once ss_busy.
++		if (arm_pending) force_cnt <= force_ready ? force_cnt : force_cnt + 1'b1;
++		else             force_cnt <= 0;
++		ss_nmi_force <= arm_pending & force_ready;
++
+ 		if (cpuwr_ce & ss_busy) begin
+ 			if (ss_addr_sel) begin // Reset save state address
+ 				ss_data_addr <= 20'd8;
+@@ -335,7 +356,8 @@ always @(posedge clk) begin
  					if (ddr_di[31:0] == 32'h5345_4E53) begin // "SNES"
  						load_ready <= 1; // State found
  					end else begin

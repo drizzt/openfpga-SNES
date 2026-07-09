@@ -44,7 +44,13 @@ entity SCPU is
 		SNI_JOY			: out std_logic_vector(63 downto 0);
 
 		TURBO				: in std_logic;
-		
+
+		-- Save state engine: force one NMI at the 65C816 regardless of
+		-- NMITIMEN, so a console running with interrupts off still fetches
+		-- a vector the engine can hijack. Edge-detected downstream, so a
+		-- held level yields a single NMI.
+		SS_NMI_FORCE	: in std_logic := '0';
+
 		DBG_CPU_EN		: in std_logic
 	);
 end SCPU;
@@ -622,7 +628,7 @@ begin
 				end if;
 			end if;
 			
-			P65_NMI_N <= not (NMI_FLAG and NMI_EN);
+			P65_NMI_N <= not ((NMI_FLAG and NMI_EN) or SS_NMI_FORCE);
 			P65_IRQ_N <= (not IRQ_FLAG) and IRQ_N; 
 		end if;
 	end process;

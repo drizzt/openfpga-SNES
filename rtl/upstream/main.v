@@ -274,6 +274,7 @@ SNES SNES
 	.ss_di(SS_DO),
 	.ss_spc_do(SS_SPC_DI),
 	.ss_ppu_do(SS_PPU_DI),
+	.ss_nmi_force(SS_NMI_FORCE),
 
 	.DBG_BG_EN(DBG_BG_EN),
 	.DBG_CPU_EN(DBG_CPU_EN),
@@ -887,6 +888,7 @@ assign MAP_ACTIVE[6] = 0;
 endgenerate
 
 wire  [7:0] SS_DO;
+wire        SS_NMI_FORCE;
 wire [23:0] SS_ROM_ADDR;
 
 wire [19:0] SS_EXT_ADDR;
@@ -974,6 +976,7 @@ savestates ss
 	.ss_do_ovr(SS_DO_OVR),
 	.ss_rom_ovr(SS_ROM_OVR),
 	.ss_busy(SS_BUSY),
+	.ss_nmi_force(SS_NMI_FORCE),
 	.ss_load_reject(SS_LOAD_REJECT)
 );
 end else begin
@@ -996,6 +999,7 @@ end else begin
 	assign SS_ROM_OVR = 0;
 	assign SS_BUSY = 0;
 	assign SS_LOAD_REJECT = 0;
+	assign SS_NMI_FORCE = 0;
 end
 endgenerate
 

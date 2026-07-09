@@ -70,6 +70,7 @@ module savestates
 	output            ss_do_ovr,
 	output            ss_rom_ovr,
 	output reg        ss_busy,
+	output reg        ss_nmi_force,
 
 	output reg        ss_load_reject // Sticky: header failed magic/signature check
 );
@@ -165,6 +166,13 @@ localparam DDR_IDLE = 4'd0, LOAD_DATA = 4'd1, WRITE_DATA = 4'd2,
 
 reg [31:0] ss_count = 0;
 
+// Force an NMI when a request has stayed armed too long without a vector
+// fetch. Some sections (title screens) run with NMI disabled and no IRQ, so
+// no hijack point ever appears. force_cnt[20] = 2^20 MCLK ticks ~48.8 ms.
+reg  [20:0] force_cnt;
+wire        arm_pending = (save_en | (load_en & load_ready)) & ~ss_busy;
+wire        force_ready = force_cnt[20];
+
 // Detect if NMI is being used. Some games do not use NMI during game play.
 reg [15:0] nmi_cycle_cnt, nmi_read_sr;
 wire ss_use_nmi = |nmi_read_sr;
@@ -191,6 +199,8 @@ always @(posedge clk) begin
 		load_ready <= 0;
 		ss_load_reject <= 0;
 		rd_rti <= 0;
+		force_cnt <= 0;
+		ss_nmi_force <= 0;
 		ss_data_addr <= 0;
 		ss_data_addr_inc <= 0;
 		ss_ext_addr <= 0;
@@ -234,6 +244,13 @@ always @(posedge clk) begin
 				save_end <= 0;
 			end
 		end
+
+		// Run the force timer while a request waits for a vector fetch. At the
+		// terminal count assert one NMI at the CPU; it is edge-detected there,
+		// so a held level yields a single hijackable NMI. Drops once ss_busy.
+		if (arm_pending) force_cnt <= force_ready ? force_cnt : force_cnt + 1'b1;
+		else             force_cnt <= 0;
+		ss_nmi_force <= arm_pending & force_ready;
 
 		if (cpuwr_ce & ss_busy) begin
 			if (ss_addr_sel) begin // Reset save state address

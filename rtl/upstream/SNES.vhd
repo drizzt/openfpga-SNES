@@ -104,6 +104,7 @@ entity SNES is
 		SS_DI       : in std_logic_vector(7 downto 0);
 		SS_SPC_DO   : out std_logic_vector(7 downto 0);
 		SS_PPU_DO   : out std_logic_vector(7 downto 0);
+		SS_NMI_FORCE: in std_logic := '0';
 
 		TURBO			: in std_logic;
 		
@@ -254,6 +255,7 @@ begin
 		SNI_JOY		=> SNI_JOY,
 
 		TURBO			=> TURBO,
+		SS_NMI_FORCE=> SS_NMI_FORCE,
 		DBG_CPU_EN	=> DBG_CPU_EN
 	);
 

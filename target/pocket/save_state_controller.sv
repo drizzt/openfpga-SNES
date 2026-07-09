@@ -21,6 +21,9 @@ module save_state_controller #(
     input wire [31:0] bridge_addr,
     // Declared blob size in bytes; cart dependent, set by the loader
     input wire [31:0] ss_size,
+    // APF marks the whole savestate slot read finished; a blob that reaches this
+    // without ever touching its last word is shorter than ss_size
+    input wire dataslot_allcomplete,
 
     // APF savestate handshake (clk_74a)
     input  wire savestate_load,
@@ -38,6 +41,7 @@ module save_state_controller #(
     // Core (clk_sys)
     input wire ss_allow,     // save states usable right now (cart ready etc)
     input wire ss_busy,      // engine walk running
+    input wire ss_load_reject, // engine rejected the header (bad magic / wrong ROM); sticky, engine clock
     input wire stage_lost,   // staging dropped data, the staged blob is torn (clk_mem)
 
     output reg ss_save = 0,
@@ -88,19 +92,27 @@ module save_state_controller #(
   wire stage_active_s;
   wire last_read_s;
   wire last_write_s;
+  wire allcomplete_s;
   wire stage_lost_s;
 
   synch_3 #(
-      .WIDTH(5)
+      .WIDTH(6)
   ) cmd_sync (
-      {savestate_start, savestate_load, stage_active, last_read_seen, last_write_seen},
-      {start_s, load_s, stage_active_s, last_read_s, last_write_s},
+      {savestate_start, savestate_load, stage_active, last_read_seen, last_write_seen, dataslot_allcomplete},
+      {start_s, load_s, stage_active_s, last_read_s, last_write_s, allcomplete_s},
       clk_sys_21_48
   );
 
   synch_3 stage_lost_sync (
       stage_lost,
       stage_lost_s,
+      clk_sys_21_48
+  );
+
+  wire reject_s;
+  synch_3 reject_sync (
+      ss_load_reject,
+      reject_s,
       clk_sys_21_48
   );
 
@@ -127,6 +139,8 @@ module save_state_controller #(
   reg prev_start = 0;
   reg prev_load = 0;
   reg prev_stage = 0;
+  reg prev_allcomplete = 0;
+  reg reject_armed = 0; // Ignore a stale reject held over from a prior load
   reg [27:0] timeout = 0;
 
   // ss_allow rises before the console reset tail fully releases; a trigger
@@ -146,6 +160,7 @@ module save_state_controller #(
     prev_start <= start_s;
     prev_load <= load_s;
     prev_stage <= stage_active_s;
+    prev_allcomplete <= allcomplete_s;
 
     ss_save <= 0;
     ss_load <= 0;
@@ -286,7 +301,16 @@ module save_state_controller #(
           // Last word landed and any download drained; trigger the engine
           ss_load <= 1;
           timeout <= 0;
+          reject_armed <= 0; // Wait for the engine to clear any stale reject first
           state <= LOAD_WAIT_BUSY;
+        end else if (allcomplete_s && ~prev_allcomplete && ~last_write_s) begin
+          // The slot read finished but the last word never arrived: the blob is
+          // shorter than ss_size (wrong/truncated state). Rising edge ignores a
+          // stale allcomplete held from the wake download. Fail fast instead of
+          // waiting out TIMEOUT_READBACK.
+          load_busy <= 0;
+          load_err <= 1;
+          state <= IDLE;
         end else if (timeout == TIMEOUT_READBACK) begin
           load_busy <= 0;
           load_err <= 1;
@@ -295,7 +319,17 @@ module save_state_controller #(
       end
 
       LOAD_WAIT_BUSY: begin
-        if (ss_busy) begin
+        if (~reject_s) begin
+          // Engine cleared the stale reject; a fresh high now is this load's verdict
+          reject_armed <= 1;
+        end
+
+        if (reject_armed && reject_s) begin
+          // Engine rejected the header (bad magic / wrong ROM); fail fast
+          load_busy <= 0;
+          load_err <= 1;
+          state <= IDLE;
+        end else if (ss_busy) begin
           timeout <= 0;
           state <= LOAD_WALK;
         end else if (~ss_allow) begin

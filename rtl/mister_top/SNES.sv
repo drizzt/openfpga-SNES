@@ -100,6 +100,7 @@ module MAIN_SNES (
     input wire ss_load,
     input wire ss_ctrl_idle,
     output wire ss_busy,
+    output wire ss_load_reject,
     output wire ss_avail,
     output wire ss_stage_lost,
 
@@ -485,6 +486,7 @@ module MAIN_SNES (
       .SS_DDR_DI(ss_ddr_di),
       .SS_DDR_ACK(ss_ddr_ack),
       .SS_BUSY(ss_busy),
+      .SS_LOAD_REJECT(ss_load_reject),
 
       // Outputs
       .SYSCLKR_CE(),

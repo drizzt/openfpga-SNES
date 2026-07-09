@@ -30,6 +30,7 @@ module tb_ss_ctrl;
 
   reg bridge_rd = 0, bridge_wr = 0;
   reg [31:0] bridge_addr = 0;
+  reg dataslot_allcomplete = 0;
 
   reg savestate_load = 0, savestate_start = 0;
   wire l_ack, l_busy, l_ok, l_err;
@@ -37,6 +38,7 @@ module tb_ss_ctrl;
 
   reg ss_allow = 1;
   reg ss_busy = 0;
+  reg ss_load_reject = 0;
   reg stage_lost = 0;
   wire ss_save, ss_load, ss_idle;
 
@@ -51,6 +53,7 @@ module tb_ss_ctrl;
       .bridge_wr(bridge_wr),
       .bridge_addr(bridge_addr),
       .ss_size(32'h1000),  // small for sim speed
+      .dataslot_allcomplete(dataslot_allcomplete),
       .savestate_load(savestate_load),
       .savestate_load_ack_s(l_ack),
       .savestate_load_busy_s(l_busy),
@@ -63,6 +66,7 @@ module tb_ss_ctrl;
       .savestate_start_err_s(s_err),
       .ss_allow(ss_allow),
       .ss_busy(ss_busy),
+      .ss_load_reject(ss_load_reject),
       .stage_lost(stage_lost),
       .ss_save(ss_save),
       .ss_load(ss_load),
@@ -78,6 +82,7 @@ module tb_ss_ctrl;
   integer nmi_delay = 300;
   integer nmi_cnt = 0, walk_cnt = 0;
   reg reject_load = 0;
+  integer reject_gap = 0;
   always @(posedge clk_sys) begin
     if (ss_save && !pend_walk && !ss_busy) begin
       pend_walk <= 1;
@@ -86,6 +91,17 @@ module tb_ss_ctrl;
     if (ss_load && !reject_load && !pend_walk && !ss_busy) begin
       pend_walk <= 1;
       nmi_cnt   <= nmi_delay;
+    end
+    // Model the header check: a load arm clears the sticky reject, then it
+    // rises a few cycles later (after the header read) when the blob is bad.
+    // The gap lets the controller observe the low before the fresh high.
+    if (ss_load && !pend_walk && !ss_busy) begin
+      ss_load_reject <= 0;
+      reject_gap <= reject_load ? 40 : 0;
+    end
+    if (reject_gap > 0) begin
+      reject_gap <= reject_gap - 1;
+      if (reject_gap == 1) ss_load_reject <= 1;
     end
     if (pend_walk) begin
       if (nmi_cnt > 0) nmi_cnt <= nmi_cnt - 1;
@@ -117,6 +133,7 @@ module tb_ss_ctrl;
   task bridge_write_burst(input integer words);
     integer k;
     begin
+      dataslot_allcomplete <= 0;  // new slot read starts
       for (k = 0; k < words; k = k + 1) begin
         @(posedge clk_74a);
         bridge_addr <= 32'h40000000 + k * 4;
@@ -131,6 +148,7 @@ module tb_ss_ctrl;
   task bridge_write_all;
     integer k;
     begin
+      dataslot_allcomplete <= 0;  // new slot read starts
       for (k = 0; k < 'h1000 / 4; k = k + 1) begin
         @(posedge clk_74a);
         bridge_addr <= 32'h40000000 + k * 4;
@@ -139,6 +157,7 @@ module tb_ss_ctrl;
         bridge_wr <= 0;
         repeat (10) @(posedge clk_74a);
       end
+      dataslot_allcomplete <= 1;  // whole slot read finished
     end
   endtask
 
@@ -294,8 +313,10 @@ module tb_ss_ctrl;
 
     repeat (1000) @(posedge clk_74a);
 
-    // ---------------- LOAD with truncated stream ----------------
-    // Firmware never reaches the last word: no ss_load, timeout error
+    // ---------------- LOAD with a short blob (size mismatch) -------------
+    // The whole slot read finishes (dataslot_allcomplete) but never reaches the
+    // last word: the blob is shorter than ss_size. Must fail fast off the
+    // allcomplete edge, not wait out TIMEOUT_READBACK.
     savestate_load <= 1;
     guard = 0;
     while (!l_ack && guard < 10000) begin
@@ -304,21 +325,29 @@ module tb_ss_ctrl;
     end
     savestate_load <= 0;
     bridge_write_burst(16);
+    dataslot_allcomplete <= 1;  // APF signals the short read finished
     guard = 0;
     while (!(l_ok | l_err) && guard < 60000000) begin
       @(posedge clk_74a);
       guard = guard + 1;
     end
     if (!l_err) begin
-      $display("FAIL: truncated stream did not produce err");
+      $display("FAIL: short blob did not produce err");
       errors = errors + 1;
-    end else $display("PASS: truncated stream reports Loading failed");
+    end else if (guard >= 20000) begin
+      // Fast-fail: the size mismatch must be reported well before the
+      // TIMEOUT_READBACK fallback would have fired
+      $display("FAIL: short blob err came from timeout, not allcomplete (%0d)", guard);
+      errors = errors + 1;
+    end else $display("PASS: short blob reports Loading failed fast (%0d)", guard);
     if (!ss_idle) begin
-      $display("FAIL: not idle after truncated stream");
+      $display("FAIL: not idle after short blob");
       errors = errors + 1;
     end
 
-    repeat (1000) @(posedge clk_74a);
+    // The short burst fast-failed before its write monostable expired; drain it
+    // so the next scenario's staging retriggers
+    repeat (2_200_000) @(posedge clk_74a);
 
     // ---------------- LOAD with bad blob (engine never goes busy) --------
     reject_load = 1;
@@ -338,7 +367,12 @@ module tb_ss_ctrl;
     if (!l_err) begin
       $display("FAIL: bad blob did not produce err");
       errors = errors + 1;
-    end else $display("PASS: bad blob reports Loading failed");
+    end else if (guard >= 20000) begin
+      // Fast-fail: the engine reject must be reported well before the
+      // ~TIMEOUT_TRIGGER (200k clk_sys) fallback would have fired
+      $display("FAIL: bad blob err came from timeout, not the reject signal (%0d)", guard);
+      errors = errors + 1;
+    end else $display("PASS: bad blob reports Loading failed fast (%0d)", guard);
     reject_load = 0;
 
     // The engine never armed on the rejected blob, so the next command works

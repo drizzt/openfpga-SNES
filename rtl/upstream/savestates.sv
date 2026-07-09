@@ -69,7 +69,9 @@ module savestates
 
 	output            ss_do_ovr,
 	output            ss_rom_ovr,
-	output reg        ss_busy
+	output reg        ss_busy,
+
+	output reg        ss_load_reject // Sticky: header failed magic/signature check
 );
 
 reg cpurd_n_old, cpuwr_n_old;
@@ -187,6 +189,7 @@ always @(posedge clk) begin
 		load_en <= 0;
 		save_end <= 0;
 		load_ready <= 0;
+		ss_load_reject <= 0;
 		rd_rti <= 0;
 		ss_data_addr <= 0;
 		ss_data_addr_inc <= 0;
@@ -203,6 +206,7 @@ always @(posedge clk) begin
 				ss_slot <= slot;
 				ddr_state <= READ_HEAD; // Check header in RAM
 				load_ready <= 0;
+				ss_load_reject <= 0;
 			end
 		end
 
@@ -335,7 +339,8 @@ always @(posedge clk) begin
 					if (ddr_di[31:0] == 32'h5345_4E53) begin // "SNES"
 						load_ready <= 1; // State found
 					end else begin
-						load_en <= 0;
+						load_en <= 0; // Reject: bad magic or wrong ROM
+						ss_load_reject <= 1; // Signal fast-fail up to the loader
 					end
 				end
 

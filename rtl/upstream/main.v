@@ -148,6 +148,7 @@ module main #(
 	output            SS_DDR_REQ,
 
 	output            SS_BUSY,
+	output            SS_LOAD_REJECT,
 
 	output     [15:0] AUDIO_L,
 	output     [15:0] AUDIO_R
@@ -972,7 +973,8 @@ savestates ss
 
 	.ss_do_ovr(SS_DO_OVR),
 	.ss_rom_ovr(SS_ROM_OVR),
-	.ss_busy(SS_BUSY)
+	.ss_busy(SS_BUSY),
+	.ss_load_reject(SS_LOAD_REJECT)
 );
 end else begin
 	assign SS_DO = 0;
@@ -993,6 +995,7 @@ end else begin
 	assign SS_DO_OVR = 0;
 	assign SS_ROM_OVR = 0;
 	assign SS_BUSY = 0;
+	assign SS_LOAD_REJECT = 0;
 end
 endgenerate
 

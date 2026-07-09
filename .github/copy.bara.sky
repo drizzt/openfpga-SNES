@@ -38,6 +38,7 @@ core.workflow(
           "upstream_patches/lightgun.patch",
           "upstream_patches/DSPn.patch",
           "upstream_patches/CX4.patch",
+          "upstream_patches/CX4Map.patch",
           "upstream_patches/savestates.patch",
           "upstream_patches/CPU.vhd.patch",
           "upstream_patches/SNES.vhd.patch",

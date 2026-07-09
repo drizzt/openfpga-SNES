@@ -15,11 +15,27 @@ Save state engine, Pocket-carried deltas:
    $63 register and $8A cache windows, and holding the snapshot/restore until
    the CX4 is idle (cx4_ss_ok). Ported from SNES_MiSTer PR #487.
 
+4. Reject a save state saved under a different ROM. Latch the per-ROM
+   signature (ss_game_id) at save/load start, stamp it into the reserved
+   header bytes 12-15, and refuse a load whose stored signature does not
+   match, reusing the item 1 reject path. A zero signature (legacy state or
+   guard disabled) loads unconditionally; the producer folds a computed 0 to
+   nonzero so a real ROM never lands on the sentinel.
+
 diff --git a/rtl/upstream/savestates.sv b/rtl/upstream/savestates.sv
-index 8e567ec..1df632a 100644
+index 8e567ec..4569374 100644
 --- a/rtl/upstream/savestates.sv
 +++ b/rtl/upstream/savestates.sv
-@@ -59,6 +59,11 @@ module savestates
+@@ -8,6 +8,8 @@ module savestates
+ 	input             load,
+ 	input       [1:0] slot,
+ 
++	input      [31:0] ss_game_id,   // ROM signature; 0 = disabled / legacy
++
+ 	input       [3:0] ram_size,
+ 	input       [7:0] rom_type,
+ 
+@@ -59,6 +61,11 @@ module savestates
  	output            gsu_regs_sel,
  	input       [7:0] gsu_di,
  
@@ -31,7 +47,7 @@ index 8e567ec..1df632a 100644
  	input             sa1_active,
  	input      [23:0] sa1_a,
  	input       [7:0] sa1_di,
-@@ -69,7 +74,10 @@ module savestates
+@@ -69,7 +76,10 @@ module savestates
  
  	output            ss_do_ovr,
  	output            ss_rom_ovr,
@@ -43,7 +59,15 @@ index 8e567ec..1df632a 100644
  );
  
  reg cpurd_n_old, cpuwr_n_old;
-@@ -136,6 +144,7 @@ wire ss_status_sel = ss_reg_sel & (ca[15:0] == 16'h600F);
+@@ -125,6 +135,7 @@ reg [19:0] ss_data_addr;
+ reg [19:0] ss_data_size;
+ reg [19:0] ss_ddr_addr;
+ reg [1:0] ss_slot;
++reg [31:0] cur_game_id; // Latched ss_game_id, stamped/checked in header bytes 12-15
+ reg ss_data_addr_inc;
+ wire ss_data_sel = ss_reg_sel & (ca[15:0] == 16'h6000);
+ wire ss_addr_sel = ss_reg_sel & (ca[15:0] == 16'h6001);
+@@ -136,6 +147,7 @@ wire ss_status_sel = ss_reg_sel & (ca[15:0] == 16'h600F);
  
  assign dspn_regs_sel = ss_reg_sel & (ca[15:8] == 8'h61);
  assign gsu_regs_sel = ss_reg_sel & (ca[15:8] == 8'h62);
@@ -51,7 +75,7 @@ index 8e567ec..1df632a 100644
  
  wire ppu_sel = (ca[23:16] == 8'hC1) & (ca[15:8] == 8'h21);
  
-@@ -150,6 +159,7 @@ wire spc_read = spc_sel & ~pard_n;
+@@ -150,6 +162,7 @@ wire spc_read = spc_sel & ~pard_n;
  wire bsram_read = bsram_sel & ~pard_n;
  
  wire dspn_ram_read = dspn_ram_sel & ~pard_n;
@@ -59,7 +83,7 @@ index 8e567ec..1df632a 100644
  
  reg [3:0] ddr_state;
  reg [7:0] ddr_data;
-@@ -163,6 +173,13 @@ localparam DDR_IDLE = 4'd0, LOAD_DATA = 4'd1, WRITE_DATA = 4'd2,
+@@ -163,6 +176,13 @@ localparam DDR_IDLE = 4'd0, LOAD_DATA = 4'd1, WRITE_DATA = 4'd2,
  
  reg [31:0] ss_count = 0;
  
@@ -73,7 +97,7 @@ index 8e567ec..1df632a 100644
  // Detect if NMI is being used. Some games do not use NMI during game play.
  reg [15:0] nmi_cycle_cnt, nmi_read_sr;
  wire ss_use_nmi = |nmi_read_sr;
-@@ -187,7 +204,10 @@ always @(posedge clk) begin
+@@ -187,7 +207,10 @@ always @(posedge clk) begin
  		load_en <= 0;
  		save_end <= 0;
  		load_ready <= 0;
@@ -84,11 +108,18 @@ index 8e567ec..1df632a 100644
  		ss_data_addr <= 0;
  		ss_data_addr_inc <= 0;
  		ss_ext_addr <= 0;
-@@ -203,12 +223,18 @@ always @(posedge clk) begin
+@@ -198,17 +221,25 @@ always @(posedge clk) begin
+ 			if (~save_old & save) begin
+ 				save_en <= 1;
+ 				ss_slot <= slot;
++				cur_game_id <= ss_game_id; // Latch to avoid tearing on mid-op ROM reload
+ 			end else if (~load_old & load) begin
+ 				load_en <= 1;
  				ss_slot <= slot;
  				ddr_state <= READ_HEAD; // Check header in RAM
  				load_ready <= 0;
 +				ss_load_reject <= 0;
++				cur_game_id <= ss_game_id;
  			end
  		end
  
@@ -104,7 +135,7 @@ index 8e567ec..1df632a 100644
  					ss_busy <= 1; // Override NMI/IRQ vector
  					if (save_en) begin
  						ss_count <= ss_count + 1'b1;
-@@ -231,6 +257,13 @@ always @(posedge clk) begin
+@@ -231,6 +262,13 @@ always @(posedge clk) begin
  			end
  		end
  
@@ -118,7 +149,7 @@ index 8e567ec..1df632a 100644
  		if (cpuwr_ce & ss_busy) begin
  			if (ss_addr_sel) begin // Reset save state address
  				ss_data_addr <= 20'd8;
-@@ -275,7 +308,7 @@ always @(posedge clk) begin
+@@ -275,7 +313,7 @@ always @(posedge clk) begin
  		end
  
  		if (pawr_ce | pard_ce) begin
@@ -127,8 +158,31 @@ index 8e567ec..1df632a 100644
  				ss_ext_addr_inc <= 1;
  			end
  		end
-@@ -335,7 +368,8 @@ always @(posedge clk) begin
- 					if (ddr_di[31:0] == 32'h5345_4E53) begin // "SNES"
+@@ -292,7 +330,11 @@ always @(posedge clk) begin
+ 				ddr_do[63:8] <= 0; // Clear for possible partial last write
+ 			end
+ 
+-			ddr_do[ss_data_addr[2:0]*8 +:8] <= ddr_data;
++			// Stamp ROM signature into reserved header bytes 12-15 (word offset 3)
++			ddr_do[ss_data_addr[2:0]*8 +:8] <=
++				(save_en && ss_data_addr[19:2] == 18'd3)
++					? cur_game_id[ss_data_addr[1:0]*8 +:8]
++					: ddr_data;
+ 
+ 			if (ss_data_addr[2:0] == 3'd7) begin // 8 bytes written
+ 				ddr_state <= WRITE_DATA;
+@@ -331,11 +373,17 @@ always @(posedge clk) begin
+ 					ddr_state <= READ_HEAD_END;
+ 				end
+ 				READ_HEAD_END: begin
++					// cur_game_id is the folded producer signature (SNES.sv ss_game_id_out);
++					// a real ROM never hashes to 0, so 0 here means legacy/guard-disabled.
+ 					ddr_state <= DDR_END;
+-					if (ddr_di[31:0] == 32'h5345_4E53) begin // "SNES"
++					if (ddr_di[31:0] == 32'h5345_4E53          // "SNES"
++						&& (ddr_di[63:32] == 32'd0             // legacy state, no signature
++							|| cur_game_id == 32'd0            // guard disabled
++							|| ddr_di[63:32] == cur_game_id)) begin // signature matches ROM
  						load_ready <= 1; // State found
  					end else begin
 -						load_en <= 0;
@@ -137,7 +191,7 @@ index 8e567ec..1df632a 100644
  					end
  				end
  
-@@ -433,7 +467,7 @@ savestates_map ss_map
+@@ -433,7 +481,7 @@ savestates_map ss_map
  
  wire ss_oe = ss_data_sel | ss_status_sel | nmi_vect | irq_vect |
  			ss_ramsize_sel | ss_romtype_sel | ssr_oe | map_ss_oe |
@@ -146,7 +200,7 @@ index 8e567ec..1df632a 100644
  
  always @(posedge clk) begin
  	ss_do <= 8'h00;
-@@ -448,6 +482,7 @@ always @(posedge clk) begin
+@@ -448,6 +496,7 @@ always @(posedge clk) begin
  	if (ppu_sel) ss_do <= ppu_di;
  	if (dspn_regs_sel) ss_do <= dspn_di;
  	if (gsu_regs_sel) ss_do <= gsu_di;
@@ -154,7 +208,7 @@ index 8e567ec..1df632a 100644
  end
  
  always @(*) begin
-@@ -465,6 +500,7 @@ always @(*) begin
+@@ -465,6 +514,7 @@ always @(*) begin
  	if (spc_read) ddr_data = spc_di;
  	if (bsram_read) ddr_data = bsram_di;
  	if (dspn_ram_read) ddr_data = dspn_di;
@@ -162,7 +216,7 @@ index 8e567ec..1df632a 100644
  end
  
  assign ss_do_ovr = ss_busy & ss_oe;
-@@ -475,6 +511,7 @@ assign dsp_regs_sel = ss_busy & (pa == 8'h85);
+@@ -475,6 +525,7 @@ assign dsp_regs_sel = ss_busy & (pa == 8'h85);
  assign smp_regs_sel = ss_busy & (pa == 8'h86);
  assign bsram_sel = ss_busy & (pa == 8'h87);
  assign dspn_ram_sel = ss_busy & (pa == 8'h88);

@@ -137,6 +137,7 @@ module main #(
 	input             SS_TOSD,
 	input             SS_LOAD,
 	input       [1:0] SS_SLOT,
+	input      [31:0] SS_GAME_ID,
 	output            SS_AVAIL,
 
 	input      [63:0] SS_DDR_DI,
@@ -942,6 +943,7 @@ savestates ss
 	.save_sd(SS_TOSD),
 	.load(SS_LOAD),
 	.slot(SS_SLOT),
+	.ss_game_id(SS_GAME_ID),
 
 	.ram_size(RAM_SIZE),
 	.rom_type(ROM_TYPE),

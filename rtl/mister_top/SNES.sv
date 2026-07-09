@@ -317,6 +317,32 @@ module MAIN_SNES (
     end
   end
 
+  // Per-ROM signature for savestate cross-load rejection. Rolling rotate-and-XOR
+  // hash over the raw cart download stream (16-bit words), seeded with the FNV-1a
+  // 32-bit offset basis. Fixed forever: the value is baked into saved states. The
+  // XOR of address bits 1/8/16 breaks up mirrored/padded ROMs (bit 0 is always 0
+  // since ioctl_addr steps by 2 per 16-bit word). 0 is the reserved "no signature"
+  // sentinel (legacy state / savestate guard disabled); a real ROM never emits it
+  // because ss_game_id_out folds a computed 0 to a fixed nonzero value below.
+  reg [31:0] ss_game_id = 0;
+  always @(posedge clk_sys) begin
+    if (cart_download & ioctl_wr) begin
+      if (ioctl_addr == 0)
+        ss_game_id <= 32'h811C9DC5                       // FNV-1a offset basis (seed)
+                      ^ {16'd0, ioctl_dout};
+      else
+        ss_game_id <= {ss_game_id[30:0], ss_game_id[31]} // rotl 1
+                      ^ {16'd0, ioctl_dout}
+                      ^ {7'd0, ioctl_addr[1], ioctl_addr[8], ioctl_addr[16], 22'd0};
+    end
+  end
+
+  // Fold the reserved 0 sentinel out of the produced signature so a real ROM can
+  // never collide with "no signature"/legacy. Combinational on the final value:
+  // save/load only run after cart_download completes, so ss_game_id is stable.
+  // The load-side compare that reads this back is savestates.sv READ_HEAD_END.
+  wire [31:0] ss_game_id_out = (ss_game_id == 0) ? 32'hFFFFFFFF : ss_game_id;
+
   reg spc_mode = 0;
   always @(posedge clk_sys) begin
     if (ioctl_wr) begin
@@ -483,6 +509,7 @@ module MAIN_SNES (
       .SS_TOSD(1'b1),
       .SS_LOAD(ss_load),
       .SS_SLOT(2'b0),
+      .SS_GAME_ID(ss_game_id_out),
       .SS_DDR_DI(ss_ddr_di),
       .SS_DDR_ACK(ss_ddr_ack),
       .SS_BUSY(ss_busy),

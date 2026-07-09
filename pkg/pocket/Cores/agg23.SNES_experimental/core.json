@@ -5,11 +5,11 @@
       "platform_ids": [
         "snes"
       ],
-      "shortname": "SNES",
-      "description": "Super Nintendo and Super Famicom. Nintendo's second major home console",
+      "shortname": "SNES_experimental",
+      "description": "Super Nintendo and Super Famicom, experimental build with save states, forced-NMI capture and Analogizer support",
       "author": "agg23",
-      "url": "https://github.com/agg23/openfpga-snes",
-      "version": "0.4.4",
+      "url": "https://github.com/drizzt/openfpga-snes",
+      "version": "0.4.4-experimental",
       "date_release": "2024-09-16"
     },
     "framework": {

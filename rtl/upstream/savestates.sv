@@ -8,6 +8,8 @@ module savestates
 	input             load,
 	input       [1:0] slot,
 
+	input      [31:0] ss_game_id,   // ROM signature; 0 = disabled / legacy
+
 	input       [3:0] ram_size,
 	input       [7:0] rom_type,
 
@@ -133,6 +135,7 @@ reg [19:0] ss_data_addr;
 reg [19:0] ss_data_size;
 reg [19:0] ss_ddr_addr;
 reg [1:0] ss_slot;
+reg [31:0] cur_game_id; // Latched ss_game_id, stamped/checked in header bytes 12-15
 reg ss_data_addr_inc;
 wire ss_data_sel = ss_reg_sel & (ca[15:0] == 16'h6000);
 wire ss_addr_sel = ss_reg_sel & (ca[15:0] == 16'h6001);
@@ -218,12 +221,14 @@ always @(posedge clk) begin
 			if (~save_old & save) begin
 				save_en <= 1;
 				ss_slot <= slot;
+				cur_game_id <= ss_game_id; // Latch to avoid tearing on mid-op ROM reload
 			end else if (~load_old & load) begin
 				load_en <= 1;
 				ss_slot <= slot;
 				ddr_state <= READ_HEAD; // Check header in RAM
 				load_ready <= 0;
 				ss_load_reject <= 0;
+				cur_game_id <= ss_game_id;
 			end
 		end
 
@@ -325,7 +330,11 @@ always @(posedge clk) begin
 				ddr_do[63:8] <= 0; // Clear for possible partial last write
 			end
 
-			ddr_do[ss_data_addr[2:0]*8 +:8] <= ddr_data;
+			// Stamp ROM signature into reserved header bytes 12-15 (word offset 3)
+			ddr_do[ss_data_addr[2:0]*8 +:8] <=
+				(save_en && ss_data_addr[19:2] == 18'd3)
+					? cur_game_id[ss_data_addr[1:0]*8 +:8]
+					: ddr_data;
 
 			if (ss_data_addr[2:0] == 3'd7) begin // 8 bytes written
 				ddr_state <= WRITE_DATA;
@@ -364,8 +373,13 @@ always @(posedge clk) begin
 					ddr_state <= READ_HEAD_END;
 				end
 				READ_HEAD_END: begin
+					// cur_game_id is the folded producer signature (SNES.sv ss_game_id_out);
+					// a real ROM never hashes to 0, so 0 here means legacy/guard-disabled.
 					ddr_state <= DDR_END;
-					if (ddr_di[31:0] == 32'h5345_4E53) begin // "SNES"
+					if (ddr_di[31:0] == 32'h5345_4E53          // "SNES"
+						&& (ddr_di[63:32] == 32'd0             // legacy state, no signature
+							|| cur_game_id == 32'd0            // guard disabled
+							|| ddr_di[63:32] == cur_game_id)) begin // signature matches ROM
 						load_ready <= 1; // State found
 					end else begin
 						load_en <= 0; // Reject: bad magic or wrong ROM

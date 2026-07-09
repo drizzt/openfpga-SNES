@@ -25,6 +25,7 @@ jobs:
           git config --global credential.helper store
 
       - name: "Copybara"
+        id: copybara
         run: |
           # Allow us to capture the Docker exit code
           set +e
@@ -37,7 +38,16 @@ jobs:
           --ignore-noop migrate /usr/src/app/.github/copy.bara.sky
           EXIT_CODE=$?
           set -e
+          # Exit code 4 means no changes to migrate; anything else non-zero is a failure
           if [ $EXIT_CODE -eq 4 ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
           exit $EXIT_CODE
+
+      - name: "Auto-merge sync PR"
+        if: steps.copybara.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CUSTOM_GH_TOKEN }}
+        run: gh pr merge vendor/upstream-sync --auto --squash --delete-branch

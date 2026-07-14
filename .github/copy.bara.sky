@@ -1,5 +1,5 @@
 upstream_url = "https://github.com/MiSTer-devel/SNES_MiSTer.git"
-downstream_url = "https://github.com/agg23/openfpga-SNES.git"
+downstream_url = "https://github.com/drizzt/openfpga-SNES.git"
 
 core.workflow(
     name = "default",

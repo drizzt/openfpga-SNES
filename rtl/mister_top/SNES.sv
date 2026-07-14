@@ -17,6 +17,7 @@ module MAIN_SNES (
     input wire mouse_enabled,
 
     input wire blend_enabled,
+    input wire dis_shortline,
 
     // Inputs
     input wire p1_button_a,
@@ -163,6 +164,12 @@ module MAIN_SNES (
     output wire hblank,
     output wire vsync,
     output wire hsync,
+
+    // Raw video status for the Analogizer resampler
+    output wire FIELD,
+    output wire INTERLACE,
+    output wire HIGH_RES,
+    output wire DOTCLK,
 
     output wire [7:0] video_r,
     output wire [7:0] video_g,
@@ -359,7 +366,6 @@ module MAIN_SNES (
 
   wire vblank_n;
   wire hblank_n;
-  wire dotclk;
 
   assign vblank = ~vblank_n;
   assign hblank = ~hblank_n;
@@ -393,6 +399,7 @@ module MAIN_SNES (
       .RAM_MASK(ram_mask),
       .PAL(PAL),
       .BLEND(blend_enabled),
+      .DIS_SHORTLINE(dis_shortline),
 
       .ROM_ADDR(ROM_ADDR),
       .ROM_D(ROM_D),
@@ -436,10 +443,10 @@ module MAIN_SNES (
       .G(G),
       .B(B),
 
-      // .FIELD(FIELD), // TODO
-      // .INTERLACE(INTERLACE),
-      // .HIGH_RES(HIGH_RES),
-      .DOTCLK(dotclk),
+      .FIELD(FIELD),
+      .INTERLACE(INTERLACE),
+      .HIGH_RES(HIGH_RES),
+      .DOTCLK(DOTCLK),
 
       .HBLANKn(hblank_n),
       .VBLANKn(vblank_n),
@@ -1023,7 +1030,7 @@ module MAIN_SNES (
 
       .HDE(hblank_n),
       .VDE(vblank_n),
-      .CLKPIX(dotclk),
+      .CLKPIX(DOTCLK),
 
       .TARGET(LG_TARGET),
       .SIZE(0),

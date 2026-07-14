@@ -22,7 +22,7 @@
       },
       "hardware": {
         "link_port": false,
-        "cartridge_adapter": -1
+        "cartridge_adapter": 0
       },
       "chip32_vm": "loader.bin"
     },
@@ -43,14 +43,24 @@
         "filename": "snes_pal.rev"
       },
       {
-        "name": "SA1CX4",
+        "name": "SA1",
         "id": 3,
-        "filename": "snes_sa1cx4.rev"
+        "filename": "snes_sa1.rev"
       },
       {
-        "name": "PALSA1CX4",
+        "name": "PALSA1",
         "id": 4,
-        "filename": "snes_pal_sa1cx4.rev"
+        "filename": "snes_pal_sa1.rev"
+      },
+      {
+        "name": "CX4",
+        "id": 5,
+        "filename": "snes_cx4.rev"
+      },
+      {
+        "name": "PALCX4",
+        "id": 6,
+        "filename": "snes_pal_cx4.rev"
       }
     ]
   }

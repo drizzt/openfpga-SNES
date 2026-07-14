@@ -70,6 +70,7 @@ module main #(
 	input       [7:0] CC_DIP,
 
 	input             BLEND,
+	input             DIS_SHORTLINE,
 	input             PAL,
 	output            HIGH_RES,
 	output            V224_MODE,
@@ -243,6 +244,7 @@ SNES SNES
 	.sni_joy(SNI_JOY),
 
 	.blend(BLEND),
+	.dis_shortline(DIS_SHORTLINE),
 	.pal(PAL),
 	.high_res(HIGH_RES),
 	.field_out(FIELD),

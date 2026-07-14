@@ -33,6 +33,7 @@ entity SPPU is
 		
 		PAL			: in std_logic;
 		BLEND			: in std_logic;
+		DIS_SHORTLINE	: in std_logic;
 
 		HIGH_RES		: out std_logic;
 		DOTCLK		: out std_logic;
@@ -319,7 +320,7 @@ begin
 	elsif rising_edge(CLK) then
 		if ENABLE = '0' then
 			DOT_CYCLES := "100";
-		elsif V_CNT = 240 and BGINTERLACE = '0' and FIELD = '1' and PAL = '0' then
+		elsif V_CNT = 240 and BGINTERLACE = '0' and FIELD = '1' and PAL = '0' and DIS_SHORTLINE = '0' then
 			DOT_CYCLES := "100";
 		elsif H_CNT = 323 or H_CNT = 327 then
 			DOT_CYCLES := "110";

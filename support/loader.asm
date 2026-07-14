@@ -169,22 +169,25 @@ check_pal:
 cmp r4,#0x60 // Check if SA-1
 jp nz, bit_cx4
 log_string("Using SA1")
-jp sa1cx4_core
+ld r5,#3 // NTSC SA1 core
+cmp r3,#1 // Check if PAL
+jp nz, boot_special
+log_string("Using PAL")
+ld r5,#4 // PAL SA1 core
+jp boot_special
 
 bit_cx4:
 cmp r4,#0x40 // Check if CX4
 jp nz, plain_cart
 log_string("Using CX4")
-
-sa1cx4_core:
-ld r5,#3 // NTSC SA1/CX4 core
+ld r5,#5 // NTSC CX4 core
 cmp r3,#1 // Check if PAL
-jp nz, boot_sa1cx4
+jp nz, boot_special
 log_string("Using PAL")
-ld r5,#4 // PAL SA1/CX4 core
+ld r5,#6 // PAL CX4 core
 
-boot_sa1cx4:
-core r5 // Boot SA1/CX4 core
+boot_special:
+core r5 // Boot SA1 or CX4 core
 jp send_chip
 
 plain_cart:

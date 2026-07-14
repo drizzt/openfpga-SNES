@@ -1,5 +1,5 @@
 diff --git a/rtl/upstream/main.v b/rtl/upstream/main.v
-index dba1449..abddc4a 100644
+index dba1449..dbdb8bd 100644
 --- a/rtl/upstream/main.v
 +++ b/rtl/upstream/main.v
 @@ -1,4 +1,15 @@
@@ -19,7 +19,15 @@ index dba1449..abddc4a 100644
  	input             RESET_N,
  
  	input             MCLK,
-@@ -126,6 +137,7 @@ module main (
+@@ -59,6 +70,7 @@ module main (
+ 	input       [7:0] CC_DIP,
+ 
+ 	input             BLEND,
++	input             DIS_SHORTLINE,
+ 	input             PAL,
+ 	output            HIGH_RES,
+ 	output            V224_MODE,
+@@ -126,6 +138,7 @@ module main (
  	input             SS_TOSD,
  	input             SS_LOAD,
  	input       [1:0] SS_SLOT,
@@ -27,7 +35,7 @@ index dba1449..abddc4a 100644
  	output            SS_AVAIL,
  
  	input      [63:0] SS_DDR_DI,
-@@ -136,21 +148,14 @@ module main (
+@@ -136,21 +149,14 @@ module main (
  	output      [7:0] SS_DDR_BE,
  	output            SS_DDR_REQ,
  
@@ -52,7 +60,15 @@ index dba1449..abddc4a 100644
  
  wire [23:0] CA;
  wire        CPURD_N;
-@@ -270,6 +275,7 @@ SNES SNES
+@@ -238,6 +244,7 @@ SNES SNES
+ 	.sni_joy(SNI_JOY),
+ 
+ 	.blend(BLEND),
++	.dis_shortline(DIS_SHORTLINE),
+ 	.pal(PAL),
+ 	.high_res(HIGH_RES),
+ 	.field_out(FIELD),
+@@ -270,6 +277,7 @@ SNES SNES
  	.ss_di(SS_DO),
  	.ss_spc_do(SS_SPC_DI),
  	.ss_ppu_do(SS_PPU_DI),
@@ -60,7 +76,7 @@ index dba1449..abddc4a 100644
  
  	.DBG_BG_EN(DBG_BG_EN),
  	.DBG_CPU_EN(DBG_CPU_EN),
-@@ -472,10 +478,27 @@ CX4Map CX4Map
+@@ -472,10 +480,27 @@ CX4Map CX4Map
  	.map_active(MAP_ACTIVE[0]),
  	.map_ctrl(ROM_TYPE),
  	.rom_mask(ROM_MASK),
@@ -90,7 +106,7 @@ index dba1449..abddc4a 100644
  endgenerate
  
  wire [7:0]  SDD_DO;
-@@ -882,8 +905,8 @@ end else
+@@ -882,8 +907,8 @@ end else
  assign MAP_ACTIVE[6] = 0;
  endgenerate
  
@@ -100,7 +116,7 @@ index dba1449..abddc4a 100644
  wire [23:0] SS_ROM_ADDR;
  
  wire [19:0] SS_EXT_ADDR;
-@@ -898,6 +921,16 @@ wire        SS_BSRAM_SEL;
+@@ -898,6 +923,16 @@ wire        SS_BSRAM_SEL;
  wire        SS_DSPN_REGS_SEL, SS_DSPN_RAM_SEL;
  wire        SS_GSU_SEL;
  
@@ -117,7 +133,7 @@ index dba1449..abddc4a 100644
  
  generate
  if (USE_SS == 1'b1) begin
-@@ -910,6 +943,7 @@ savestates ss
+@@ -910,6 +945,7 @@ savestates ss
  	.save_sd(SS_TOSD),
  	.load(SS_LOAD),
  	.slot(SS_SLOT),
@@ -125,7 +141,7 @@ index dba1449..abddc4a 100644
  
  	.ram_size(RAM_SIZE),
  	.rom_type(ROM_TYPE),
-@@ -960,6 +994,11 @@ savestates ss
+@@ -960,6 +996,11 @@ savestates ss
  	.gsu_regs_sel(SS_GSU_SEL),
  	.gsu_di(SS_GSU_DI),
  
@@ -137,7 +153,7 @@ index dba1449..abddc4a 100644
  	.sa1_active(MAP_ACTIVE[3]),
  	.sa1_a(SA1_P65_A),
  	.sa1_di(SA1_P65_DO),
-@@ -970,7 +1009,9 @@ savestates ss
+@@ -970,7 +1011,9 @@ savestates ss
  
  	.ss_do_ovr(SS_DO_OVR),
  	.ss_rom_ovr(SS_ROM_OVR),
@@ -148,7 +164,7 @@ index dba1449..abddc4a 100644
  );
  end else begin
  	assign SS_DO = 0;
-@@ -988,13 +1029,17 @@ end else begin
+@@ -988,13 +1031,17 @@ end else begin
  	assign SS_DSPN_REGS_SEL = 0;
  	assign SS_DSPN_RAM_SEL = 0;
  	assign SS_GSU_SEL = 0;

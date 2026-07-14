@@ -3,25 +3,23 @@ with interrupts off still fetches a vector for the engine to hijack. It is
 edge-detected in the 65C816 core, so a held level yields a single NMI.
 
 diff --git a/rtl/upstream/CPU.vhd b/rtl/upstream/CPU.vhd
-index c93fc43..98188a6 100644
+index 5ce6913..301b2a0 100644
 --- a/rtl/upstream/CPU.vhd
 +++ b/rtl/upstream/CPU.vhd
-@@ -44,7 +44,13 @@ entity SCPU is
- 		SNI_JOY			: out std_logic_vector(63 downto 0);
- 
+@@ -46,6 +46,12 @@ entity SCPU is
  		TURBO				: in std_logic;
--		
+ 		
+ 		SS_BUSY			: in std_logic := '0';
 +
 +		-- Save state engine: force one NMI at the 65C816 regardless of
 +		-- NMITIMEN, so a console running with interrupts off still fetches
 +		-- a vector the engine can hijack. Edge-detected downstream, so a
 +		-- held level yields a single NMI.
 +		SS_NMI_FORCE	: in std_logic := '0';
-+
+ 		
  		DBG_CPU_EN		: in std_logic
  	);
- end SCPU;
-@@ -622,7 +628,7 @@ begin
+@@ -625,7 +631,7 @@ begin
  				end if;
  			end if;
  			

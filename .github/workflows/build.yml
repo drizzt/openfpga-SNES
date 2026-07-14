@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        core: ["main", "pal", "spc", "sa1cx4", "pal_sa1cx4"]
+        core: ["main", "pal", "spc", "sa1", "cx4", "pal_sa1", "pal_cx4"]
       fail-fast: false
 
     steps:
@@ -58,11 +58,17 @@ jobs:
                   spc)
                       echo "ntsc_spc"
                       ;;
-                  sa1cx4)
-                      echo "ntsc_sa1cx4"
+                  sa1)
+                      echo "ntsc_sa1"
                       ;;
-                  pal_sa1cx4)
-                      echo "pal_sa1cx4"
+                  cx4)
+                      echo "ntsc_cx4"
+                      ;;
+                  pal_sa1)
+                      echo "pal_sa1"
+                      ;;
+                  pal_cx4)
+                      echo "pal_cx4"
                       ;;
                   *)
                       echo "Unknown input"

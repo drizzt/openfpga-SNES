@@ -42,6 +42,7 @@ core.workflow(
           "upstream_patches/savestates.patch",
           "upstream_patches/CPU.vhd.patch",
           "upstream_patches/SNES.vhd.patch",
+          "upstream_patches/PPU.vhd.patch",
         ]),
         metadata.add_header("[UPSTREAM] ", ignore_label_not_found=True, new_line=False),
     ],

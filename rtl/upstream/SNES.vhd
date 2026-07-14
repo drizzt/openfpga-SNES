@@ -15,7 +15,8 @@ entity SNES is
 		ENABLE		: in std_logic;
 		PAL			: in std_logic;
 		BLEND			: in std_logic;
-		
+		DIS_SHORTLINE	: in std_logic;
+
 		CA       	: out std_logic_vector(23 downto 0);
 		CPURD_N		: out std_logic;
 		CPUWR_N		: out std_logic;
@@ -341,6 +342,7 @@ begin
 		
 		BLEND			=> BLEND,
 		PAL			=> PAL,
+		DIS_SHORTLINE	=> DIS_SHORTLINE,
 		HIGH_RES		=> HIGH_RES,
 		DOTCLK		=> DOTCLK,
 		FIELD_OUT	=> FIELD_OUT,

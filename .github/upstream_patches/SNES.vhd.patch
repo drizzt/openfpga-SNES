@@ -1,10 +1,21 @@
-Thread the save state engine SS_NMI_FORCE from main down to the SCPU core.
+Thread the save state engine SS_NMI_FORCE and the Analogizer
+DIS_SHORTLINE flag from main down to the SCPU core.
 
 diff --git a/rtl/upstream/SNES.vhd b/rtl/upstream/SNES.vhd
-index 1801236..ba777bd 100644
+index 776d652..48e303e 100644
 --- a/rtl/upstream/SNES.vhd
 +++ b/rtl/upstream/SNES.vhd
-@@ -104,6 +104,7 @@ entity SNES is
+@@ -15,7 +15,8 @@ entity SNES is
+ 		ENABLE		: in std_logic;
+ 		PAL			: in std_logic;
+ 		BLEND			: in std_logic;
+-		
++		DIS_SHORTLINE	: in std_logic;
++
+ 		CA       	: out std_logic_vector(23 downto 0);
+ 		CPURD_N		: out std_logic;
+ 		CPUWR_N		: out std_logic;
+@@ -104,6 +105,7 @@ entity SNES is
  		SS_DI       : in std_logic_vector(7 downto 0);
  		SS_SPC_DO   : out std_logic_vector(7 downto 0);
  		SS_PPU_DO   : out std_logic_vector(7 downto 0);
@@ -12,11 +23,19 @@ index 1801236..ba777bd 100644
  
  		TURBO			: in std_logic;
  		
-@@ -254,6 +255,7 @@ begin
- 		SNI_JOY		=> SNI_JOY,
+@@ -255,6 +257,7 @@ begin
  
  		TURBO			=> TURBO,
+ 		SS_BUSY		=> SS_BUSY,
 +		SS_NMI_FORCE=> SS_NMI_FORCE,
  		DBG_CPU_EN	=> DBG_CPU_EN
  	);
  
+@@ -340,6 +343,7 @@ begin
+ 		
+ 		BLEND			=> BLEND,
+ 		PAL			=> PAL,
++		DIS_SHORTLINE	=> DIS_SHORTLINE,
+ 		HIGH_RES		=> HIGH_RES,
+ 		DOTCLK		=> DOTCLK,
+ 		FIELD_OUT	=> FIELD_OUT,

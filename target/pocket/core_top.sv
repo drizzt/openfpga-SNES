@@ -1481,15 +1481,13 @@ module core_top (
   wire clk_mem_85_9;
   wire clk_sys_42_56;  // Analogizer video/encoder master clock
   wire clk_sys_21_48;
-  reg  clk_video_5_37;
-  reg  clk_video_5_37_90deg;
+  wire clk_video_5_37;
+  wire clk_video_5_37_90deg;
 
   wire pll_core_locked;
 
   parameter PAL_PLL = 1'b0;
 
-  // The PLL is regenerated to add the 42.95 MHz Analogizer clock on outclk_1;
-  // the 5.37 MHz video clocks are derived from clk_mem_85_9 below.
   generate
     if (PAL_PLL) begin
       mf_pllbase_pal mp1 (
@@ -1498,6 +1496,8 @@ module core_top (
           .outclk_0(clk_mem_85_9),
           .outclk_1(clk_sys_42_56),
           .outclk_2(clk_sys_21_48),
+          .outclk_3(clk_video_5_37),
+          .outclk_4(clk_video_5_37_90deg),
 
           .locked(pll_core_locked)
       );
@@ -1508,18 +1508,12 @@ module core_top (
           .outclk_0(clk_mem_85_9),
           .outclk_1(clk_sys_42_56),
           .outclk_2(clk_sys_21_48),
+          .outclk_3(clk_video_5_37),
+          .outclk_4(clk_video_5_37_90deg),
 
           .locked(pll_core_locked)
       );
     end
   endgenerate
-
-  // Derive the 5.37 MHz video clock (and its 90-degree phase) from 85.9 MHz
-  reg [1:0] clk_divider = 2'b00;
-  always @(posedge clk_mem_85_9) begin
-    clk_divider <= clk_divider + 1'b1;
-    if (clk_divider == 2'b00) clk_video_5_37       <= ~clk_video_5_37;
-    if (clk_divider == 2'b01) clk_video_5_37_90deg <= ~clk_video_5_37_90deg;
-  end
 
 endmodule

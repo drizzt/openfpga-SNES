@@ -121,6 +121,7 @@ begin
 		SS_DO      => SS_DO,
 
 		SS_CACHE_A   => SS_CACHE_A,
+		SS_CACHE_SEL => SS_CACHE_SEL,
 		SS_CACHE_WR  => not PAWR_N and SS_CACHE_SEL,
 		SS_CACHE_DI  => SS_CACHE_DI,
 		SS_CACHE_DO  => SS_CACHE_DO,

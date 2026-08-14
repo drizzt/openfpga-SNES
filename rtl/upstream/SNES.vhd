@@ -71,6 +71,7 @@ entity SNES is
 		VDE			: out std_logic;
 		HSYNC			: out std_logic;
 		VSYNC			: out std_logic;
+		HVCNT_ATZERO	: out std_logic;
 
 		JOY1_DI		: in std_logic_vector(1 downto 0);
 		JOY2_DI		: in std_logic_vector(1 downto 0);
@@ -357,7 +358,8 @@ begin
 		VDE			=> VDE,
 		HSYNC			=> HSYNC,
 		VSYNC			=> VSYNC,
-		
+		HVCNT_ATZERO	=> HVCNT_ATZERO,
+
 		BG_EN			=> DBG_BG_EN,
 
 		SS_A		=> INT_CA(7 downto 0),

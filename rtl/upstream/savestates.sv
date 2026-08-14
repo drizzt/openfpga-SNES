@@ -234,12 +234,11 @@ always @(posedge clk) begin
 
 		if (cpurd_ce) begin
 			if (nmi_vect_l | (~ss_use_nmi & irq_vect_l)) begin // Prefer to use NMI
-				// Hold a SAVE or LOAD until the coprocessor is idle (cx4_ss_ok).
-				// The save_en/load_en latches persist, so the snapshot/restore just
-				// waits for the CX4 to finish its current burst -- no in-flight
-				// CPU/cache/DMA state is ever captured or clobbered, and the RUN
-				// flags are guaranteed 0 on both sides so they are not serialized.
-				if (~ss_busy & (save_en | (load_en & load_ready)) & cx4_ss_ok) begin
+				// Hold a SAVE until the coprocessor is idle (cx4_ss_ok). The
+				// save_en latch persists, so the snapshot just waits for the CX4 to
+				// finish its current burst -- no in-flight CPU/cache/DMA state is ever
+				// captured. Load is unaffected.
+				if (~ss_busy & ((save_en & cx4_ss_ok) | (load_en & load_ready))) begin
 					ss_busy <= 1; // Override NMI/IRQ vector
 					if (save_en) begin
 						ss_count <= ss_count + 1'b1;
@@ -525,7 +524,7 @@ assign dsp_regs_sel = ss_busy & (pa == 8'h85);
 assign smp_regs_sel = ss_busy & (pa == 8'h86);
 assign bsram_sel = ss_busy & (pa == 8'h87);
 assign dspn_ram_sel = ss_busy & (pa == 8'h88);
-assign cx4_cache_sel = ss_busy & (pa == 8'h8A);
+assign cx4_cache_sel = ss_busy & (pa == 8'h89);
 assign ext_addr = ss_ext_addr;
 
 assign ddr_addr = { ss_slot[1:0], ss_ddr_addr[19:3] };

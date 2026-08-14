@@ -1,29 +1,5 @@
-Save state engine, Pocket-carried deltas:
-
-1. Report a rejected load up to the Pocket loader. When the header magic check
-   fails, raise ss_load_reject (sticky until the next load arms) so
-   save_state_controller can fail the load at once instead of waiting out its
-   ~10 s trigger timeout.
-
-2. Force an NMI when a save/load request has stayed armed too long without a
-   vector fetch. Some sections (title screens polling input) run with NMI
-   disabled and no IRQ, so the engine never gets a hijack point. After 2^20
-   MCLK (~48.8 ms) ss_nmi_force ORs one NMI into the 65C816. Ported from
-   SNES_MiSTer PR #488.
-
-3. CX4 coprocessor save state support: cx4_regs_sel/cx4_cache_sel decode, the
-   $63 register and $8A cache windows, and holding the snapshot/restore until
-   the CX4 is idle (cx4_ss_ok). Ported from SNES_MiSTer PR #487.
-
-4. Reject a save state saved under a different ROM. Latch the per-ROM
-   signature (ss_game_id) at save/load start, stamp it into the reserved
-   header bytes 12-15, and refuse a load whose stored signature does not
-   match, reusing the item 1 reject path. A zero signature (legacy state or
-   guard disabled) loads unconditionally; the producer folds a computed 0 to
-   nonzero so a real ROM never lands on the sentinel.
-
 diff --git a/rtl/upstream/savestates.sv b/rtl/upstream/savestates.sv
-index 8e567ec..4569374 100644
+index 5fc5621..0701c9c 100644
 --- a/rtl/upstream/savestates.sv
 +++ b/rtl/upstream/savestates.sv
 @@ -8,6 +8,8 @@ module savestates
@@ -35,19 +11,7 @@ index 8e567ec..4569374 100644
  	input       [3:0] ram_size,
  	input       [7:0] rom_type,
  
-@@ -59,6 +61,11 @@ module savestates
- 	output            gsu_regs_sel,
- 	input       [7:0] gsu_di,
- 
-+	output            cx4_regs_sel,
-+	output            cx4_cache_sel,
-+	input       [7:0] cx4_di,
-+	input             cx4_ss_ok,   // 1 = ok to snapshot (CX4 idle or not a CX4 cart)
-+
- 	input             sa1_active,
- 	input      [23:0] sa1_a,
- 	input       [7:0] sa1_di,
-@@ -69,7 +76,10 @@ module savestates
+@@ -74,7 +76,10 @@ module savestates
  
  	output            ss_do_ovr,
  	output            ss_rom_ovr,
@@ -59,7 +23,7 @@ index 8e567ec..4569374 100644
  );
  
  reg cpurd_n_old, cpuwr_n_old;
-@@ -125,6 +135,7 @@ reg [19:0] ss_data_addr;
+@@ -130,6 +135,7 @@ reg [19:0] ss_data_addr;
  reg [19:0] ss_data_size;
  reg [19:0] ss_ddr_addr;
  reg [1:0] ss_slot;
@@ -67,23 +31,7 @@ index 8e567ec..4569374 100644
  reg ss_data_addr_inc;
  wire ss_data_sel = ss_reg_sel & (ca[15:0] == 16'h6000);
  wire ss_addr_sel = ss_reg_sel & (ca[15:0] == 16'h6001);
-@@ -136,6 +147,7 @@ wire ss_status_sel = ss_reg_sel & (ca[15:0] == 16'h600F);
- 
- assign dspn_regs_sel = ss_reg_sel & (ca[15:8] == 8'h61);
- assign gsu_regs_sel = ss_reg_sel & (ca[15:8] == 8'h62);
-+assign cx4_regs_sel = ss_reg_sel & (ca[15:8] == 8'h63);
- 
- wire ppu_sel = (ca[23:16] == 8'hC1) & (ca[15:8] == 8'h21);
- 
-@@ -150,6 +162,7 @@ wire spc_read = spc_sel & ~pard_n;
- wire bsram_read = bsram_sel & ~pard_n;
- 
- wire dspn_ram_read = dspn_ram_sel & ~pard_n;
-+wire cx4_cache_read = cx4_cache_sel & ~pard_n;
- 
- reg [3:0] ddr_state;
- reg [7:0] ddr_data;
-@@ -163,6 +176,13 @@ localparam DDR_IDLE = 4'd0, LOAD_DATA = 4'd1, WRITE_DATA = 4'd2,
+@@ -170,6 +176,13 @@ localparam DDR_IDLE = 4'd0, LOAD_DATA = 4'd1, WRITE_DATA = 4'd2,
  
  reg [31:0] ss_count = 0;
  
@@ -97,7 +45,7 @@ index 8e567ec..4569374 100644
  // Detect if NMI is being used. Some games do not use NMI during game play.
  reg [15:0] nmi_cycle_cnt, nmi_read_sr;
  wire ss_use_nmi = |nmi_read_sr;
-@@ -187,7 +207,10 @@ always @(posedge clk) begin
+@@ -194,7 +207,10 @@ always @(posedge clk) begin
  		load_en <= 0;
  		save_end <= 0;
  		load_ready <= 0;
@@ -108,7 +56,7 @@ index 8e567ec..4569374 100644
  		ss_data_addr <= 0;
  		ss_data_addr_inc <= 0;
  		ss_ext_addr <= 0;
-@@ -198,17 +221,25 @@ always @(posedge clk) begin
+@@ -205,11 +221,14 @@ always @(posedge clk) begin
  			if (~save_old & save) begin
  				save_en <= 1;
  				ss_slot <= slot;
@@ -123,19 +71,7 @@ index 8e567ec..4569374 100644
  			end
  		end
  
- 		if (cpurd_ce) begin
- 			if (nmi_vect_l | (~ss_use_nmi & irq_vect_l)) begin // Prefer to use NMI
--				if (~ss_busy & (save_en | (load_en & load_ready))) begin
-+				// Hold a SAVE or LOAD until the coprocessor is idle (cx4_ss_ok).
-+				// The save_en/load_en latches persist, so the snapshot/restore just
-+				// waits for the CX4 to finish its current burst -- no in-flight
-+				// CPU/cache/DMA state is ever captured or clobbered, and the RUN
-+				// flags are guaranteed 0 on both sides so they are not serialized.
-+				if (~ss_busy & (save_en | (load_en & load_ready)) & cx4_ss_ok) begin
- 					ss_busy <= 1; // Override NMI/IRQ vector
- 					if (save_en) begin
- 						ss_count <= ss_count + 1'b1;
-@@ -231,6 +262,13 @@ always @(posedge clk) begin
+@@ -242,6 +261,13 @@ always @(posedge clk) begin
  			end
  		end
  
@@ -149,16 +85,7 @@ index 8e567ec..4569374 100644
  		if (cpuwr_ce & ss_busy) begin
  			if (ss_addr_sel) begin // Reset save state address
  				ss_data_addr <= 20'd8;
-@@ -275,7 +313,7 @@ always @(posedge clk) begin
- 		end
- 
- 		if (pawr_ce | pard_ce) begin
--			if (spc_sel | bsram_sel | dspn_ram_sel) begin
-+			if (spc_sel | bsram_sel | dspn_ram_sel | cx4_cache_sel) begin
- 				ss_ext_addr_inc <= 1;
- 			end
- 		end
-@@ -292,7 +330,11 @@ always @(posedge clk) begin
+@@ -303,7 +329,11 @@ always @(posedge clk) begin
  				ddr_do[63:8] <= 0; // Clear for possible partial last write
  			end
  
@@ -171,7 +98,7 @@ index 8e567ec..4569374 100644
  
  			if (ss_data_addr[2:0] == 3'd7) begin // 8 bytes written
  				ddr_state <= WRITE_DATA;
-@@ -331,11 +373,17 @@ always @(posedge clk) begin
+@@ -342,11 +372,17 @@ always @(posedge clk) begin
  					ddr_state <= READ_HEAD_END;
  				end
  				READ_HEAD_END: begin
@@ -191,36 +118,3 @@ index 8e567ec..4569374 100644
  					end
  				end
  
-@@ -433,7 +481,7 @@ savestates_map ss_map
- 
- wire ss_oe = ss_data_sel | ss_status_sel | nmi_vect | irq_vect |
- 			ss_ramsize_sel | ss_romtype_sel | ssr_oe | map_ss_oe |
--			ppu_sel | dspn_regs_sel | gsu_regs_sel;
-+			ppu_sel | dspn_regs_sel | gsu_regs_sel | cx4_regs_sel;
- 
- always @(posedge clk) begin
- 	ss_do <= 8'h00;
-@@ -448,6 +496,7 @@ always @(posedge clk) begin
- 	if (ppu_sel) ss_do <= ppu_di;
- 	if (dspn_regs_sel) ss_do <= dspn_di;
- 	if (gsu_regs_sel) ss_do <= gsu_di;
-+	if (cx4_regs_sel) ss_do <= cx4_di;
- end
- 
- always @(*) begin
-@@ -465,6 +514,7 @@ always @(*) begin
- 	if (spc_read) ddr_data = spc_di;
- 	if (bsram_read) ddr_data = bsram_di;
- 	if (dspn_ram_read) ddr_data = dspn_di;
-+	if (cx4_cache_read) ddr_data = cx4_di;
- end
- 
- assign ss_do_ovr = ss_busy & ss_oe;
-@@ -475,6 +525,7 @@ assign dsp_regs_sel = ss_busy & (pa == 8'h85);
- assign smp_regs_sel = ss_busy & (pa == 8'h86);
- assign bsram_sel = ss_busy & (pa == 8'h87);
- assign dspn_ram_sel = ss_busy & (pa == 8'h88);
-+assign cx4_cache_sel = ss_busy & (pa == 8'h8A);
- assign ext_addr = ss_ext_addr;
- 
- assign ddr_addr = { ss_slot[1:0], ss_ddr_addr[19:3] };

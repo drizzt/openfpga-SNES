@@ -1,8 +1,8 @@
 diff --git a/rtl/upstream/chip/DSP/DSPn.vhd b/rtl/upstream/chip/DSP/DSPn.vhd
-index c8cb6cc..7161b2a 100644
+index 0b773b1..aa2adec 100644
 --- a/rtl/upstream/chip/DSP/DSPn.vhd
 +++ b/rtl/upstream/chip/DSP/DSPn.vhd
-@@ -423,7 +423,7 @@ begin
+@@ -487,7 +487,7 @@ begin
  	                 std_logic_vector(unsigned(PC) + ("1"&x"6BD")) when VER="011" else
  	                 std_logic_vector(unsigned(PC) + ("1"&x"D8B"));
  
@@ -11,7 +11,7 @@ index c8cb6cc..7161b2a 100644
  	port map(
  		clock		=> CLK,
  		address	=> PROG_ROM_ADDR,
-@@ -436,7 +436,7 @@ begin
+@@ -500,7 +500,7 @@ begin
  	                 std_logic_vector(unsigned(RP( 9 downto 0)) + ("0"&x"C00")) when VER="010" else
  	                 std_logic_vector(unsigned(RP( 9 downto 0)) + ("1"&x"000")) when VER="011" else
  	                 std_logic_vector(unsigned(RP(10 downto 0)) + ("1"&x"400"));

@@ -1,9 +1,5 @@
-Save state engine: SS_NMI_FORCE ORs into the CPU NMI line so a console running
-with interrupts off still fetches a vector for the engine to hijack. It is
-edge-detected in the 65C816 core, so a held level yields a single NMI.
-
 diff --git a/rtl/upstream/CPU.vhd b/rtl/upstream/CPU.vhd
-index 5ce6913..301b2a0 100644
+index 8f7a7f5..1d2e3fe 100644
 --- a/rtl/upstream/CPU.vhd
 +++ b/rtl/upstream/CPU.vhd
 @@ -46,6 +46,12 @@ entity SCPU is

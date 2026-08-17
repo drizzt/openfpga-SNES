@@ -160,10 +160,10 @@ module MAIN_SNES (
     output wire sram_lb_n,
 
     // Video
-    output wire vblank,
-    output wire hblank,
-    output wire vsync,
-    output wire hsync,
+    output reg vblank = 0,
+    output reg hblank = 0,
+    output reg vsync = 0,
+    output reg hsync = 0,
 
     // Raw video status for the Analogizer resampler
     output wire FIELD,
@@ -366,9 +366,17 @@ module MAIN_SNES (
 
   wire vblank_n;
   wire hblank_n;
+  wire hsync_raw;
+  wire vsync_raw;
 
-  assign vblank = ~vblank_n;
-  assign hblank = ~hblank_n;
+  // Match the one cycle of latency the video_r register below adds to the
+  // color, or half-dot sampling pairs a pixel with the previous color
+  always @(posedge clk_sys) begin
+    vblank <= ~vblank_n;
+    hblank <= ~hblank_n;
+    vsync  <= vsync_raw;
+    hsync  <= hsync_raw;
+  end
 
   wire [7:0] R;
   wire [7:0] G;
@@ -450,8 +458,8 @@ module MAIN_SNES (
 
       .HBLANKn(hblank_n),
       .VBLANKn(vblank_n),
-      .HSYNC  (hsync),
-      .VSYNC  (vsync),
+      .HSYNC  (hsync_raw),
+      .VSYNC  (vsync_raw),
 
       .JOY1_DI(JOY1_DI),
       .JOY2_DI(GUN_MODE ? LG_DO : JOY2_DI),

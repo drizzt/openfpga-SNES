@@ -1115,7 +1115,7 @@ module core_top (
       end
 
       // Blank the Pocket LCD for the "Pocket OFF" video modes
-      assign video_rgb_pocket = analogizer_video_type[3] ? 24'h000000 : video_rgb_snes;
+      assign video_rgb_pocket = analogizer_video_type[3] ? 24'h000000 : video_rgb_latched;
 
       // SNAC controller state from the adapter
       wire [15:0] p1_btn, p2_btn, p3_btn, p4_btn;
@@ -1237,28 +1237,19 @@ module core_top (
         end
       end
 
-      // Resample the core's 5.37 MHz dot video up to the 42.95 MHz encoder
-      // clock, generating ce_pix and the sync/blank the encoders expect.
-      reg  [7:0] R, G, B;
-      reg  HSync, HSYNC;
-      reg  VSync, VSYNC;
-      reg  HBlank, VBlank;
-      reg  DOTCLK;
+      // Dot-latched video renamed to the active-low blanks the encoders expect
+      wire [7:0] R = video_rgb_latched[23:16];
+      wire [7:0] G = video_rgb_latched[15:8];
+      wire [7:0] B = video_rgb_latched[7:0];
+      wire HSYNC = video_hs_latched;
+      wire VSYNC = video_vs_latched;
+      wire HBlank = ~h_blank_latched;
+      wire VBlank = ~v_blank_latched;
+      wire DOTCLK = prev_dotclk;
+      reg  HSync = 0;
+      reg  VSync = 0;
       reg  interlace;
       reg  ce_pix;
-
-      always @(posedge clk_sys_42_56) begin
-        DOTCLK <= dotclk_snes;
-        if (DOTCLK ^ dotclk_snes) begin
-          R      <= video_rgb_snes[23:16];
-          G      <= video_rgb_snes[15:8];
-          B      <= video_rgb_snes[7:0];
-          HSYNC  <= video_hs_snes;
-          VSYNC  <= video_vs_snes;
-          HBlank <= ~h_blank;
-          VBlank <= ~v_blank;
-        end
-      end
 
       always @(posedge clk_sys_42_56) begin
         reg [2:0] pcnt;
@@ -1377,7 +1368,7 @@ module core_top (
         p1_stick_y  = cont1_joy_y_calibrated;
       end
 
-      assign video_rgb_pocket = video_rgb_snes;
+      assign video_rgb_pocket = video_rgb_latched;
 
       // Cart port unused; set level translators accordingly (0:IN, 1:OUT)
       assign cart_tran_bank3         = 8'hzz;
@@ -1404,6 +1395,27 @@ module core_top (
   wire video_vs_snes;
   wire [23:0] video_rgb_snes;
 
+  // Latch the video outputs on dot clock toggles (as the MiSTer top does)
+  // so every consumer samples color and blanking as one aligned pixel
+  reg [23:0] video_rgb_latched = 0;
+  reg video_hs_latched = 0;
+  reg video_vs_latched = 0;
+  reg h_blank_latched = 0;
+  reg v_blank_latched = 0;
+  reg prev_dotclk = 0;
+
+  always @(posedge clk_sys_21_48) begin
+    prev_dotclk <= dotclk_snes;
+
+    if (prev_dotclk ^ dotclk_snes) begin
+      video_rgb_latched <= video_rgb_snes;
+      video_hs_latched  <= video_hs_snes;
+      video_vs_latched  <= video_vs_snes;
+      h_blank_latched   <= h_blank;
+      v_blank_latched   <= v_blank;
+    end
+  end
+
   assign video_rgb_clock = clk_video_5_37;
   assign video_rgb_clock_90 = clk_video_5_37_90deg;
   assign video_rgb = rgb;
@@ -1422,11 +1434,11 @@ module core_top (
   ) scanline_filler (
       .clk(clk_video_5_37),
 
-      .hsync_in(video_hs_snes),
-      .vsync_in(video_vs_snes),
+      .hsync_in(video_hs_latched),
+      .vsync_in(video_vs_latched),
 
-      .vblank_in(v_blank),
-      .hblank_in(h_blank),
+      .vblank_in(v_blank_latched),
+      .hblank_in(h_blank_latched),
       .rgb_in(video_rgb_pocket),
 
       .hsync(video_hs),

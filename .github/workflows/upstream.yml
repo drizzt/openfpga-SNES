@@ -51,3 +51,55 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.CUSTOM_GH_TOKEN }}
         run: gh pr merge vendor/upstream-sync --auto --squash --delete-branch
+
+  # agg23 is the fork parent. Its "[UPSTREAM] " commits are MiSTer changes that
+  # already arrive through Copybara above, so only its own commits are reported.
+  # They touch target/pocket, pkg and rtl/mister_top, all rewritten here, so
+  # they are ported by hand: this job only tells us what is pending.
+  report-agg23:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TITLE: "agg23 commits to review"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history is needed to reach the base commit, file contents are not.
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Fetch agg23
+        run: |
+          git remote add agg23 https://github.com/agg23/openfpga-SNES.git
+          git fetch --quiet --filter=blob:none agg23 master
+
+      - name: Report pending commits
+        run: |
+          base=$(cat .github/agg23-sync-base)
+          # An agg23 force push orphans the base commit, and the failing log below
+          # would then read as "nothing pending" and close the issue.
+          git cat-file -e "$base^{commit}" || { echo "::error::base $base is not in agg23 history"; exit 1; }
+          commits=$(git log --no-merges --reverse --format='- %h %s' \
+            --invert-grep --grep='^\[UPSTREAM\] ' "$base"..agg23/master)
+          issue=$(gh issue list --state open --limit 100 --json number,title,body \
+            --jq "first(.[] | select(.title == \"$TITLE\"))")
+          number=$(printf '%s' "$issue" | jq -r '.number // empty')
+
+          if [ -z "$commits" ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --comment "All agg23 commits reviewed."
+            fi
+            exit 0
+          fi
+
+          body=$(printf '%s\n\nCompare: https://github.com/agg23/openfpga-SNES/compare/%s...master\n\nPort what applies, then bump `.github/agg23-sync-base`.\n' "$commits" "$base")
+          if [ -z "$number" ]; then
+            gh issue create --title "$TITLE" --body "$body"
+          elif [ "$body" != "$(printf '%s' "$issue" | jq -r '.body')" ]; then
+            # A body edit sends no notification, so a comment carries the update.
+            gh issue edit "$number" --body "$body"
+            gh issue comment "$number" --body "New agg23 commits pending review."
+          fi

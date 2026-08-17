@@ -352,6 +352,9 @@ module core_top (
         32'h84: begin
           gsu_turbo_enabled <= bridge_wr_data[0];
         end
+        32'h90: begin
+          swap_controllers <= bridge_wr_data[0];
+        end
         32'h100: begin
           multitap_enabled <= bridge_wr_data[0];
         end
@@ -816,6 +819,7 @@ module core_top (
   reg cpu_turbo_enabled = 0;
   reg gsu_turbo_enabled = 0;
 
+  reg swap_controllers = 0;
   reg multitap_enabled = 0;
   reg lightgun_enabled = 0;
   reg lightgun_type = 0;
@@ -836,6 +840,7 @@ module core_top (
   wire cpu_turbo_enabled_s;
   wire gsu_turbo_enabled_s;
 
+  wire swap_controllers_s;
   wire multitap_enabled_s;
   wire lightgun_enabled_s;
   wire lightgun_type_s;
@@ -848,12 +853,13 @@ module core_top (
   wire sync_dejitter_s;
 
   synch_3 #(
-      .WIDTH(26)
+      .WIDTH(27)
   ) settings_s (
       {
         reset_button,
         cpu_turbo_enabled,
         gsu_turbo_enabled,
+        swap_controllers,
         multitap_enabled,
         lightgun_enabled,
         lightgun_type,
@@ -868,6 +874,7 @@ module core_top (
         reset_button_s,
         cpu_turbo_enabled_s,
         gsu_turbo_enabled_s,
+        swap_controllers_s,
         multitap_enabled_s,
         lightgun_enabled_s,
         lightgun_type_s,
@@ -926,6 +933,7 @@ module core_top (
       .cpu_turbo_enabled(cpu_turbo_enabled_s),
       .gsu_turbo_enabled(gsu_turbo_enabled_s),
 
+      .swap_controllers(swap_controllers_s),
       .multitap_enabled(multitap_enabled_s),
       .lightgun_enabled(lightgun_enabled_s),
       .lightgun_type(lightgun_type_s),

@@ -27,6 +27,8 @@ ROMs should be placed in `/Assets/snes/common`. Both headered and unheadered ROM
 
 Core supports four players/controllers via the Analogue Dock. To enable four player mode, turn on `Use Multitap` setting.
 
+The `Swap P1 & P2` setting exchanges the controllers driving the first and second SNES ports. It is not saved, so it is off again after the core is reloaded.
+
 ### Expansion Chips
 
 All original expansion chips supported by MiSTer are also supported on the Pocket. The full list is:

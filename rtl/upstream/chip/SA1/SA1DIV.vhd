@@ -1,56 +1,101 @@
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+-- ============================================================================
+--
+-- SA1DIV.vhd
+-- (C) 2026 Alexey Melnikov
+--
+-- ============================================================================
 
--- Hardware accurate SNES SA-1 arithmetic-unit divider (sign-magnitude division).
--- Based on the SA-1 reverse engineering effort by Vitor Vilela, his test rom and the
--- validation table on sneslab.net.
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
 
--- This logic is resource optimized for the Cyclone V because ALMs are getting scarce.
--- ALMs are reclaimed by offloading the remainder math to a multiplier in a DSP block.
+ENTITY SA1DIV IS
+	PORT
+	(
+		clock    : IN  STD_LOGIC;
+		run      : IN  STD_LOGIC;
+		denom    : IN  STD_LOGIC_VECTOR (15 DOWNTO 0);
+		numer    : IN  STD_LOGIC_VECTOR (15 DOWNTO 0);
+		quotient : OUT STD_LOGIC_VECTOR (15 DOWNTO 0);
+		remain   : OUT STD_LOGIC_VECTOR (15 DOWNTO 0)
+	);
+END SA1DIV;
 
--- Access timing is out of scope and modeled by the SA-1 state machine.
+ARCHITECTURE rtl OF SA1DIV IS
 
-entity SA1DIV is
-    port (
-        numer    : in  std_logic_vector(15 downto 0);       -- numerator, signed
-        denom    : in  std_logic_vector(15 downto 0);       -- denominator, unsigned
-        quotient : out std_logic_vector(15 downto 0);       -- quotient, signed (sign of numerator)
-        remain   : out std_logic_vector(15 downto 0)        -- remainder, unsigned magnitude
-    );
-end entity;
+	SIGNAL dividend_neg : STD_LOGIC := '0';
+	SIGNAL denom_r      : UNSIGNED(16 DOWNTO 0) := (OTHERS => '0');
+	SIGNAL cnt          : UNSIGNED(2 DOWNTO 0)  := (OTHERS => '0');
+	SIGNAL run_r        : STD_LOGIC;
 
-architecture rtl of SA1DIV is
-begin
-    process(numer, denom)
-        variable n_s  : signed(16 downto 0);                -- sign-extended numerator
-        variable nmag : unsigned(16 downto 0);              -- |numerator|, 0..32768
-        variable d_u  : unsigned(16 downto 0);              -- denominator, 0..65535
-        variable qmag : unsigned(16 downto 0);              -- |quotient|
-        variable r_u  : unsigned(16 downto 0);              -- |remainder|
-        variable q_s  : signed(17 downto 0);                -- signed quotient (holds -|q| for |q|=32768)
-    begin
-        n_s := resize(signed(numer), 17);
-        d_u := unsigned('0' & denom);
-        nmag := unsigned(abs(n_s));
+BEGIN
 
-        if d_u = 0 then                                     -- Reproduce the SA-1 divide-by-zero quirk
-            r_u := nmag;
-            if n_s < 0 then
-                q_s := to_signed(1, 18);
-            else
-                q_s := to_signed(-1, 18);
-            end if;
-        else
-            qmag := nmag / d_u;                             -- unsigned magnitude division
-            r_u := nmag - resize(qmag * d_u, 17);           -- remainder = nmag - qmag*denominator
-            q_s  := signed(resize(qmag, 18));               -- apply the numerator's sign
-            if n_s < 0 then
-                q_s := -q_s;
-            end if;
-        end if;
+	PROCESS (clock)
+		VARIABLE Q : UNSIGNED(15 DOWNTO 0);
+		VARIABLE R : UNSIGNED(16 DOWNTO 0);
+	BEGIN
+		IF rising_edge(clock) THEN
+			R := R(15 DOWNTO 0) & Q(15);
+			IF R >= denom_r THEN
+				R := R - denom_r;
+				Q := Q(14 DOWNTO 0) & '1';
+			ELSE
+				Q := Q(14 DOWNTO 0) & '0';
+			END IF;
 
-        quotient <= std_logic_vector(q_s(15 downto 0));
-        remain   <= std_logic_vector(r_u(15 downto 0));
-    end process;
-end architecture;
+			R := R(15 DOWNTO 0) & Q(15);
+			IF R >= denom_r THEN
+				R := R - denom_r;
+				Q := Q(14 DOWNTO 0) & '1';
+			ELSE
+				Q := Q(14 DOWNTO 0) & '0';
+			END IF;
+
+			R := R(15 DOWNTO 0) & Q(15);
+			IF R >= denom_r THEN
+				R := R - denom_r;
+				Q := Q(14 DOWNTO 0) & '1';
+			ELSE
+				Q := Q(14 DOWNTO 0) & '0';
+			END IF;
+
+			R := R(15 DOWNTO 0) & Q(15);
+			IF R >= denom_r THEN
+				R := R - denom_r;
+				Q := Q(14 DOWNTO 0) & '1';
+			ELSE
+				Q := Q(14 DOWNTO 0) & '0';
+			END IF;
+
+			IF cnt /= 7 THEN
+				cnt <= cnt + 1;
+			END IF;
+			
+			IF cnt = 3 THEN
+				IF dividend_neg = '1' THEN
+					quotient <= STD_LOGIC_VECTOR((NOT Q) + 1);
+				ELSE
+					quotient <= STD_LOGIC_VECTOR(Q);
+				END IF;
+
+				remain   <= STD_LOGIC_VECTOR(R(15 DOWNTO 0));
+			END IF;
+			
+			run_r <= run;
+			IF run_r = '0' AND run = '1' THEN
+				dividend_neg <= numer(15);
+				IF numer(15) = '1' THEN
+					Q := (NOT UNSIGNED(numer)) + 1;
+				ELSE
+					Q := UNSIGNED(numer);
+				END IF;
+				denom_r <= UNSIGNED('0' & denom);
+
+				R       := (OTHERS => '0');
+				cnt     <= (OTHERS => '0');
+			END IF;
+
+		END IF;
+	END PROCESS;
+
+END rtl;

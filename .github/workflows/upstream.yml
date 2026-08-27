@@ -24,6 +24,8 @@ jobs:
           echo "https://user:${{ secrets.CUSTOM_GH_TOKEN }}@github.com" > /home/runner/.git-credentials
           git config --global credential.helper store
 
+      # Pinned: builds from 2026-08-21 on run `git init --ref-format=files`,
+      # which needs git 2.45, while the image still ships git 2.34.
       - name: "Copybara"
         id: copybara
         run: |
@@ -34,7 +36,7 @@ jobs:
           -v /home/runner/.ssh/known_hosts:/root/.ssh/known_hosts \
           -v /home/runner/.gitconfig:/root/.gitconfig \
           -v /home/runner/.git-credentials:/root/.git-credentials \
-          ghcr.io/anipos/copybara-docker-image \
+          ghcr.io/anipos/copybara-docker-image:c9ecad9d59bf2f9c51679dfa3742f6897178b786 \
           --ignore-noop migrate /usr/src/app/.github/copy.bara.sky
           EXIT_CODE=$?
           set -e
